@@ -2,15 +2,12 @@ pipeline {
 
     agent any
 
-    tools {
-        maven 'M3'
-    }
-
     stages {
 
         stage('Checkout Git') {
             steps {
-                git 'https://github.com/shanxify/simple-maven-app.git'
+                git branch: 'main',
+                    url: 'https://github.com/shanxify/simple-maven-app.git'
             }
         }
 
