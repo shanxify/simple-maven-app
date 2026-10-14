@@ -1,0 +1,25 @@
+
+pipeline {
+    agent any
+
+    options {
+        skipDefaultCheckout(true)
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Maven Test') {
+            steps {
+                dir('Question12-ArrayMaximum') {
+                    bat 'mvn -version'
+                    bat 'mvn clean test'
+                }
+            }
+        }
+    }
+}
