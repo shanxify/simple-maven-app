@@ -1,0 +1,25 @@
+
+pipeline {
+    agent any
+
+    options {
+        skipDefaultCheckout(true)
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build and Test') {
+            steps {
+                dir('Question15-StringPalindrome') {
+                    bat 'mvn -version'
+                    bat 'mvn clean test'
+                }
+            }
+        }
+    }
+}
