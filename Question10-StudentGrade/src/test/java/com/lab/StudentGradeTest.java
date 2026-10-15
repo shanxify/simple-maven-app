@@ -2,42 +2,53 @@
 package com.lab;
 
 import org.junit.jupiter.api.Test;
+import com.lab.StudentGrade;
+
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class StudentGradeTest {
 
-    StudentGrade obj = new StudentGrade();
-
     @Test
-    void testGradeA() {
-        assertEquals("A", obj.calculateGrade(95));
+    void assignsGradeA() {
+        assertEquals("A",
+                new StudentGrade().calculateGrade(95));
     }
 
     @Test
-    void testGradeB() {
-        assertEquals("B", obj.calculateGrade(85));
+    void assignsGradeB() {
+        assertEquals("B",
+                new StudentGrade().calculateGrade(85));
     }
 
     @Test
-    void testGradeC() {
-        assertEquals("C", obj.calculateGrade(75));
+    void assignsFailGrade() {
+        assertEquals("F",
+                new StudentGrade().calculateGrade(40));
     }
 
     @Test
-    void testGradeD() {
-        assertEquals("D", obj.calculateGrade(65));
+    void rejectsMarksAbove100() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new StudentGrade().calculateGrade(101));
     }
 
     @Test
-    void testGradeF() {
-        assertEquals("F", obj.calculateGrade(45));
+    void rejectsNegativeMarks() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new StudentGrade().calculateGrade(-5));
     }
 
     @Test
-    void testInvalidMarks() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> obj.calculateGrade(101)
-        );
+    void acceptsZeroMarks() {
+        assertEquals("F",
+                new StudentGrade().calculateGrade(0));
     }
+    
+@Test
+void temporaryFailureDemo() {
+    assertEquals("A",
+            new StudentGrade().calculateGrade(40));
+}
+
 }

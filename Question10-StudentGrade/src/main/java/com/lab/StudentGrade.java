@@ -6,8 +6,7 @@ public class StudentGrade {
     public String calculateGrade(int marks) {
         if (marks < 0 || marks > 100) {
             throw new IllegalArgumentException(
-                "Marks must be between 0 and 100"
-            );
+                    "Marks must be between 0 and 100");
         }
 
         if (marks >= 90) {
@@ -18,6 +17,8 @@ public class StudentGrade {
             return "C";
         } else if (marks >= 60) {
             return "D";
+        } else if (marks >= 50) {
+            return "E";
         } else {
             return "F";
         }
@@ -28,6 +29,7 @@ public class StudentGrade {
         int marks = 85;
 
         System.out.println("Student Marks: " + marks);
-        System.out.println("Student Grade: " + obj.calculateGrade(marks));
+        System.out.println("Student Grade: "
+                + obj.calculateGrade(marks));
     }
 }
