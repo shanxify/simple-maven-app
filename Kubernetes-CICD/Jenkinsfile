@@ -5,23 +5,19 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                echo 'Source code checked out from GitHub'
             }
         }
 
         stage('Maven Build') {
             steps {
-                dir('Kubernetes-CICD') {
-                    bat 'mvn clean package'
-                }
+                bat 'mvn -f Kubernetes-CICD/pom.xml clean package'
             }
         }
 
         stage('Docker Build') {
             steps {
-                dir('Kubernetes-CICD') {
-                    bat 'docker build -t shanxify/java-app:latest .'
-                }
+                bat 'docker build -t shanxify/java-app:latest Kubernetes-CICD'
             }
         }
 
@@ -43,10 +39,8 @@ pipeline {
 
         stage('Kubernetes Deploy') {
             steps {
-                dir('Kubernetes-CICD') {
-                    bat 'kubectl apply -f deployment.yaml'
-                    bat 'kubectl rollout status deployment/java-app --timeout=120s'
-                }
+                bat 'kubectl apply -f Kubernetes-CICD/deployment.yaml'
+                bat 'kubectl rollout status deployment/java-app --timeout=120s'
             }
         }
     }
