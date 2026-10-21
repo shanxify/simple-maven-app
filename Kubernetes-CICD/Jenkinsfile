@@ -43,7 +43,10 @@ pipeline {
                     bat '''
                         @echo off
                         echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
+                        if errorlevel 1 exit /b 1
+
                         docker push shanxify/java-app:latest
+                        if errorlevel 1 exit /b 1
                     '''
                 }
             }
@@ -51,9 +54,13 @@ pipeline {
 
         stage('Kubernetes Deploy') {
             steps {
-                dir('Kubernetes-CICD') {
-                    bat 'kubectl apply -f deployment.yaml'
-                    bat 'kubectl rollout status deployment/java-app --timeout=120s'
+                withEnv(['KUBECONFIG=C:\\Users\\sudha\\.kube\\config']) {
+                    dir('Kubernetes-CICD') {
+                        bat 'kubectl config current-context'
+                        bat 'kubectl get nodes'
+                        bat 'kubectl apply -f deployment.yaml'
+                        bat 'kubectl rollout status deployment/java-app --timeout=120s'
+                    }
                 }
             }
         }
@@ -63,8 +70,9 @@ pipeline {
         success {
             echo 'CI/CD pipeline completed successfully!'
         }
+
         failure {
-            echo 'Pipeline failed. Check the console output.'
+            echo 'Pipeline failed. Check the first error in Console Output.'
         }
     }
 }
