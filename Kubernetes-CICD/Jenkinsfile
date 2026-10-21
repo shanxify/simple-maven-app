@@ -3,12 +3,9 @@ pipeline {
     agent any
 
     stages {
-        stage('Check Workspace') {
+        stage('Checkout') {
             steps {
-                bat 'echo Current directory:'
-                bat 'cd'
-                bat 'dir'
-                bat 'dir Kubernetes-CICD'
+                echo 'Source code checked out from GitHub'
             }
         }
 
@@ -17,6 +14,14 @@ pipeline {
                 dir('Kubernetes-CICD') {
                     bat 'mvn clean package'
                 }
+            }
+        }
+
+        stage('Check Docker') {
+            steps {
+                bat 'where docker'
+                bat 'docker --version'
+                bat 'docker info'
             }
         }
 
