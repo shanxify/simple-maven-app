@@ -3,21 +3,28 @@ pipeline {
     agent any
 
     stages {
-        stage('Checkout') {
+        stage('Check Workspace') {
             steps {
-                echo 'Source code checked out from GitHub'
+                bat 'echo Current directory:'
+                bat 'cd'
+                bat 'dir'
+                bat 'dir Kubernetes-CICD'
             }
         }
 
         stage('Maven Build') {
             steps {
-                bat 'mvn -f Kubernetes-CICD/pom.xml clean package'
+                dir('Kubernetes-CICD') {
+                    bat 'mvn clean package'
+                }
             }
         }
 
         stage('Docker Build') {
             steps {
-                bat 'docker build -t shanxify/java-app:latest Kubernetes-CICD'
+                dir('Kubernetes-CICD') {
+                    bat 'docker build -t shanxify/java-app:latest .'
+                }
             }
         }
 
@@ -39,8 +46,10 @@ pipeline {
 
         stage('Kubernetes Deploy') {
             steps {
-                bat 'kubectl apply -f Kubernetes-CICD/deployment.yaml'
-                bat 'kubectl rollout status deployment/java-app --timeout=120s'
+                dir('Kubernetes-CICD') {
+                    bat 'kubectl apply -f deployment.yaml'
+                    bat 'kubectl rollout status deployment/java-app --timeout=120s'
+                }
             }
         }
     }
