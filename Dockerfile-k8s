@@ -1,0 +1,8 @@
+
+FROM nginx:alpine
+
+WORKDIR /usr/share/nginx/html
+
+RUN echo '<!DOCTYPE html><html><head><title>Set 12 CI/CD</title></head><body><h1>Set 12: Docker + Jenkins + Kubernetes</h1><p>Docker image built by Jenkins and deployed to Kubernetes.</p></body></html>' > index.html
+
+EXPOSE 80
