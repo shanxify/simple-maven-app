@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -5,21 +6,25 @@ pipeline {
         pollSCM('H/2 * * * *')
     }
 
+    environment {
+        DOCKER_IMAGE = 'shanxify/j12-web'
+        IMAGE_TAG = '1.0'
+    }
+
     stages {
         stage('Checkout GitHub') {
             steps {
                 checkout scm
-                echo 'Source code checked out from GitHub.'
+                echo 'GitHub checkout successful.'
             }
         }
 
-        stage('Verify Docker and Kubernetes') {
+        stage('Verify Tools') {
             steps {
                 bat '''
                 set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
                 set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
                 docker --version
-                docker info
                 kubectl get nodes
                 '''
             }
@@ -29,13 +34,29 @@ pipeline {
             steps {
                 bat '''
                 set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-                docker build -f Dockerfile-k8s -t j12-web:1.0 .
-                docker images j12-web
+                docker build -f Dockerfile-k8s -t %DOCKER_IMAGE%:%IMAGE_TAG% .
                 '''
             }
         }
 
-        stage('Create Kubernetes Deployment') {
+        stage('Push Image to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DH_USER',
+                    passwordVariable: 'DH_TOKEN'
+                )]) {
+                    bat '''
+                    set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+                    echo %DH_TOKEN% | docker login -u %DH_USER% --password-stdin
+                    docker push %DOCKER_IMAGE%:%IMAGE_TAG%
+                    docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
             steps {
                 writeFile file: 'j12-deployment.yaml', text: '''apiVersion: apps/v1
 kind: Deployment
@@ -53,8 +74,8 @@ spec:
     spec:
       containers:
       - name: web
-        image: j12-web:1.0
-        imagePullPolicy: Never
+        image: shanxify/j12-web:1.0
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
 '''
@@ -63,18 +84,8 @@ spec:
                 set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
                 kubectl apply -f j12-deployment.yaml
                 kubectl rollout status deployment/j12-docker-deployment --timeout=180s
-                '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                bat '''
-                set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-                set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
                 kubectl get deployment j12-docker-deployment
                 kubectl get pods -l app=j12-docker-web
-                kubectl describe deployment j12-docker-deployment
                 '''
             }
         }
@@ -82,10 +93,10 @@ spec:
 
     post {
         success {
-            echo 'Set 12 SUCCESS: Docker image built and deployed to Kubernetes.'
+            echo 'Set 12 SUCCESS: Docker image built, pushed, and deployed.'
         }
         failure {
-            echo 'Set 12 FAILED: Check Console Output for the failing stage.'
+            echo 'Set 12 FAILED: Check the stage that failed in Console Output.'
         }
     }
 }
