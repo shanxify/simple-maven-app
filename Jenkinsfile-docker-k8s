@@ -11,6 +11,9 @@ pipeline {
         IMAGE_TAG = '1.0'
         KUBE_DEPLOYMENT = 'j12-docker-deployment'
         KUBE_APP_LABEL = 'j12-docker-web'
+        DOCKER_EXE = 'C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
+        KUBECTL_EXE = 'C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe'
+        KUBECONFIG = 'C:\\Users\\sudha\\.kube\\config'
     }
 
     stages {
@@ -28,9 +31,12 @@ pipeline {
                     set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
 
                     docker --version
-                    docker info
-                    kubectl get nodes
+                    if errorlevel 1 exit /b 1
 
+                    docker info
+                    if errorlevel 1 exit /b 1
+
+                    kubectl get nodes
                     if errorlevel 1 exit /b 1
                 '''
             }
@@ -42,10 +48,10 @@ pipeline {
                     set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
 
                     docker build -f Dockerfile-k8s -t %DOCKER_IMAGE%:%IMAGE_TAG% .
-
                     if errorlevel 1 exit /b 1
 
                     docker images %DOCKER_IMAGE%
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -60,20 +66,36 @@ pipeline {
                     powershell '''
                         $ErrorActionPreference = "Stop"
 
-                        $docker = "C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe"
-
-                        if (-not $env:DH_USER -or -not $env:DH_TOKEN) {
-                            throw "Docker Hub credentials are missing."
-                        }
-
-                        $env:DH_TOKEN |
-                            & $docker login --username $env:DH_USER --password-stdin
-
-                        if ($LASTEXITCODE -ne 0) {
-                            throw "Docker Hub login failed. Check Jenkins credential dockerhub-creds."
-                        }
+                        $docker = $env:DOCKER_EXE
+                        $tokenFile = Join-Path $env:WORKSPACE "docker-token.tmp"
 
                         try {
+                            if ($env:DH_USER -ne "shanxify") {
+                                throw "Unexpected Docker Hub username in Jenkins credentials."
+                            }
+
+                            if ([string]::IsNullOrEmpty($env:DH_TOKEN)) {
+                                throw "Docker Hub token is empty."
+                            }
+
+                            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+                            [System.IO.File]::WriteAllText(
+                                $tokenFile,
+                                $env:DH_TOKEN,
+                                $utf8NoBom
+                            )
+
+                            $loginCommand = '"' + $docker + '" login --username "' + $env:DH_USER + '" --password-stdin < "' + $tokenFile + '"'
+
+                            & $env:ComSpec /d /s /c $loginCommand
+
+                            if ($LASTEXITCODE -ne 0) {
+                                throw "Docker Hub login failed. Check the Jenkins credential."
+                            }
+
+                            Write-Host "Docker Hub login succeeded."
+
                             & $docker push "$($env:DOCKER_IMAGE):$($env:IMAGE_TAG)"
 
                             if ($LASTEXITCODE -ne 0) {
@@ -83,7 +105,11 @@ pipeline {
                             Write-Host "Docker image pushed successfully."
                         }
                         finally {
-                            & $docker logout
+                            if (Test-Path $tokenFile) {
+                                Remove-Item $tokenFile -Force
+                            }
+
+                            & $docker logout 2>$null | Out-Null
                         }
                     '''
                 }
@@ -124,11 +150,9 @@ spec:
                     set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
 
                     kubectl apply -f j12-deployment.yaml
-
                     if errorlevel 1 exit /b 1
 
                     kubectl rollout status deployment/j12-docker-deployment --timeout=240s
-
                     if errorlevel 1 exit /b 1
                 '''
             }
@@ -141,9 +165,12 @@ spec:
                     set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
 
                     kubectl get deployment j12-docker-deployment
-                    kubectl get pods -l app=j12-docker-web
-                    kubectl describe deployment j12-docker-deployment
+                    if errorlevel 1 exit /b 1
 
+                    kubectl get pods -l app=j12-docker-web
+                    if errorlevel 1 exit /b 1
+
+                    kubectl describe deployment j12-docker-deployment
                     if errorlevel 1 exit /b 1
                 '''
             }
