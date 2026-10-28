@@ -9,6 +9,8 @@ pipeline {
     environment {
         DOCKER_IMAGE = 'shanxify/j12-web'
         IMAGE_TAG = '1.0'
+        KUBE_DEPLOYMENT = 'j12-docker-deployment'
+        KUBE_APP_LABEL = 'j12-docker-web'
     }
 
     stages {
@@ -22,11 +24,14 @@ pipeline {
         stage('Verify Docker and Kubernetes') {
             steps {
                 bat '''
-                set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-                set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
-                docker --version
-                docker info
-                kubectl get nodes
+                    set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+                    set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
+
+                    docker --version
+                    docker info
+                    kubectl get nodes
+
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -34,9 +39,13 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 bat '''
-                set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-                docker build -f Dockerfile-k8s -t %DOCKER_IMAGE%:%IMAGE_TAG% .
-                docker images %DOCKER_IMAGE%
+                    set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
+                    docker build -f Dockerfile-k8s -t %DOCKER_IMAGE%:%IMAGE_TAG% .
+
+                    if errorlevel 1 exit /b 1
+
+                    docker images %DOCKER_IMAGE%
                 '''
             }
         }
@@ -48,20 +57,40 @@ pipeline {
                     usernameVariable: 'DH_USER',
                     passwordVariable: 'DH_TOKEN'
                 )]) {
-                    bat '''
-                    set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-                    echo %DH_TOKEN% | docker login -u %DH_USER% --password-stdin
-                    if errorlevel 1 exit /b 1
-                    docker push %DOCKER_IMAGE%:%IMAGE_TAG%
-                    set "PUSH_RESULT=%ERRORLEVEL%"
-                    docker logout
-                    exit /b %PUSH_RESULT%
+                    powershell '''
+                        $ErrorActionPreference = "Stop"
+
+                        $docker = "C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe"
+
+                        if (-not $env:DH_USER -or -not $env:DH_TOKEN) {
+                            throw "Docker Hub credentials are missing."
+                        }
+
+                        $env:DH_TOKEN |
+                            & $docker login --username $env:DH_USER --password-stdin
+
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Docker Hub login failed. Check Jenkins credential dockerhub-creds."
+                        }
+
+                        try {
+                            & $docker push "$($env:DOCKER_IMAGE):$($env:IMAGE_TAG)"
+
+                            if ($LASTEXITCODE -ne 0) {
+                                throw "Docker image push failed."
+                            }
+
+                            Write-Host "Docker image pushed successfully."
+                        }
+                        finally {
+                            & $docker logout
+                        }
                     '''
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Create Kubernetes Deployment YAML') {
             steps {
                 writeFile file: 'j12-deployment.yaml', text: '''apiVersion: apps/v1
 kind: Deployment
@@ -84,13 +113,23 @@ spec:
         ports:
         - containerPort: 80
 '''
+                echo 'Kubernetes Deployment YAML created.'
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
                 bat '''
-                set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-                set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
-                kubectl apply -f j12-deployment.yaml
-                if errorlevel 1 exit /b 1
-                kubectl rollout status deployment/j12-docker-deployment --timeout=240s
-                if errorlevel 1 exit /b 1
+                    set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+                    set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
+
+                    kubectl apply -f j12-deployment.yaml
+
+                    if errorlevel 1 exit /b 1
+
+                    kubectl rollout status deployment/j12-docker-deployment --timeout=240s
+
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -98,11 +137,14 @@ spec:
         stage('Verify Deployment') {
             steps {
                 bat '''
-                set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-                set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
-                kubectl get deployment j12-docker-deployment
-                kubectl get pods -l app=j12-docker-web
-                kubectl describe deployment j12-docker-deployment
+                    set "PATH=C:\\Users\\sudha\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+                    set "KUBECONFIG=C:\\Users\\sudha\\.kube\\config"
+
+                    kubectl get deployment j12-docker-deployment
+                    kubectl get pods -l app=j12-docker-web
+                    kubectl describe deployment j12-docker-deployment
+
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -112,8 +154,13 @@ spec:
         success {
             echo 'SET 12 SUCCESS: Docker image built, pushed and deployed to Kubernetes.'
         }
+
         failure {
-            echo 'SET 12 FAILED: Check Console Output for the failing stage.'
+            echo 'SET 12 FAILED: Check Console Output for the first failed stage.'
+        }
+
+        always {
+            echo 'Set 12 pipeline execution finished.'
         }
     }
 }
